@@ -16,6 +16,7 @@ from services.weather_service import (
     get_weather_by_coords,
     get_weather_by_city,
     format_weather_for_prompt,
+    format_weather_json_for_prompt,
 )
 
 UPLOAD_DIR = os.getenv("UPLOAD_DIR", "E:/cursor_workspace/1/user_photo")
@@ -30,6 +31,7 @@ async def analyze(
     latitude: Optional[str] = Form(None),
     longitude: Optional[str] = Form(None),
     city_name: Optional[str] = Form(None),
+    weather_json: Optional[str] = Form(None),
     current_user: User = Depends(get_current_user),
 ):
     if not image.content_type or not image.content_type.startswith("image/"):
@@ -44,17 +46,30 @@ async def analyze(
         content = await image.read()
         f.write(content)
 
-    weather_data = {}
     weather_context = ""
-    try:
-        if latitude and longitude:
-            weather_data = await asyncio.to_thread(get_weather_by_coords, latitude, longitude)
-            weather_context = format_weather_for_prompt(weather_data)
-        elif city_name:
-            weather_data = await asyncio.to_thread(get_weather_by_city, city_name)
-            weather_context = format_weather_for_prompt(weather_data)
-    except Exception:
-        pass
+    parsed_weather = {}
+
+    # Prefer frontend-supplied weather (Open-Meteo, no VPN issues)
+    if weather_json:
+        weather_context = format_weather_json_for_prompt(weather_json, city_name)
+        try:
+            import json
+            parsed_weather = json.loads(weather_json)
+        except Exception:
+            pass
+    else:
+        # Fallback: try QWeather (may fail under VPN)
+        try:
+            if latitude and longitude:
+                wd = await asyncio.to_thread(get_weather_by_coords, latitude, longitude)
+                weather_context = format_weather_for_prompt(wd)
+                parsed_weather = wd
+            elif city_name:
+                wd = await asyncio.to_thread(get_weather_by_city, city_name)
+                weather_context = format_weather_for_prompt(wd)
+                parsed_weather = wd
+        except Exception:
+            pass
 
     try:
         result = await asyncio.to_thread(analyze_plant, filepath, weather_context)
@@ -66,8 +81,11 @@ async def analyze(
     result["imageUri"] = f"{base_url}/uploads/{filename}"
     result["analyzedAt"] = datetime.utcnow().isoformat()
 
-    if weather_data and not weather_data.get("error") and weather_data.get("current") and weather_data["current"].get("temp") is not None:
-        result["weatherInfo"] = weather_data
+    # Attach weather info for frontend display
+    if weather_json and parsed_weather:
+        result["weatherInfo"] = parsed_weather
+    elif parsed_weather and not parsed_weather.get("error") and parsed_weather.get("current"):
+        result["weatherInfo"] = parsed_weather
 
     return {"success": True, "data": result}
 
@@ -78,6 +96,7 @@ async def get_weather(
     longitude: float = Query(...),
     current_user: User = Depends(get_current_user),
 ):
+    """Legacy endpoint — kept for compatibility. Frontend now uses Open-Meteo directly."""
     try:
         data = await asyncio.to_thread(get_weather_by_coords, str(latitude), str(longitude))
         if data and not data.get("error") and data.get("current"):
@@ -98,12 +117,23 @@ async def prediction(
     req: PlantPredictionRequest,
     current_user: User = Depends(get_current_user),
 ):
-    weather_data = {}
     weather_context = ""
-    if req.city_name:
+    parsed_weather = {}
+
+    # Prefer frontend-supplied weather (Open-Meteo, no VPN issues)
+    if req.weather_json:
+        weather_context = format_weather_json_for_prompt(req.weather_json, req.city_name)
         try:
-            weather_data = await asyncio.to_thread(get_weather_by_city, req.city_name)
-            weather_context = format_weather_for_prompt(weather_data)
+            import json
+            parsed_weather = json.loads(req.weather_json)
+        except Exception:
+            pass
+    elif req.city_name:
+        # Fallback: try QWeather
+        try:
+            wd = await asyncio.to_thread(get_weather_by_city, req.city_name)
+            weather_context = format_weather_for_prompt(wd)
+            parsed_weather = wd
         except Exception:
             pass
 
@@ -114,7 +144,7 @@ async def prediction(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"预测失败: {str(e)}")
 
-    if weather_data and not weather_data.get("error") and weather_data.get("current") and weather_data["current"].get("temp") is not None:
-        result["weatherInfo"] = weather_data
+    if weather_json_data := parsed_weather:
+        result["weatherInfo"] = weather_json_data
 
     return {"success": True, "data": result}

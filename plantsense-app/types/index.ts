@@ -22,11 +22,19 @@ export interface ApiResponse<T = any> {
   error?: string;
 }
 
+export interface WeatherForecastDay {
+  date: string;
+  tempMax: string;
+  tempMin: string;
+  textDay: string;
+}
+
 export interface WeatherInfo {
   temp: string;
   text: string;
   humidity?: string;
   windSpeed?: string;
+  forecast?: WeatherForecastDay[];
 }
 
 export type PlantPersonality = 'lively' | 'cool' | 'elegant';

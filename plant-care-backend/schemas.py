@@ -37,6 +37,7 @@ class PlantPredictionRequest(BaseModel):
     plantName: str
     currentScore: int
     city_name: Optional[str] = None
+    weather_json: Optional[str] = None
 
 
 class CareAdvice(BaseModel):

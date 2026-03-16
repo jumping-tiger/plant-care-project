@@ -1,33 +1,159 @@
 import { create } from 'zustand';
 import * as Location from 'expo-location';
-import { api } from '../services/api';
-import type { WeatherInfo } from '../types';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import type { WeatherInfo, WeatherForecastDay } from '../types';
+
+const CITY_STORAGE_KEY = 'selected_city';
+
+// WMO Weather interpretation codes → Chinese text
+const WMO_TEXT: Record<number, string> = {
+  0: '晴', 1: '晴间多云', 2: '多云', 3: '阴',
+  45: '雾', 48: '冻雾',
+  51: '毛毛雨', 53: '中毛毛雨', 55: '浓毛毛雨',
+  61: '小雨', 63: '中雨', 65: '大雨',
+  71: '小雪', 73: '中雪', 75: '大雪', 77: '冰粒',
+  80: '阵雨', 81: '中阵雨', 82: '强阵雨',
+  85: '阵雪', 86: '强阵雪',
+  95: '雷阵雨', 96: '雷阵雨夹冰雹', 99: '强雷阵雨夹冰雹',
+};
+
+function wmoText(code: number): string {
+  return WMO_TEXT[code] ?? '未知';
+}
+
+export interface CityOption {
+  name: string;
+  lat: number;
+  lon: number;
+}
+
+export const PRESET_CITIES: CityOption[] = [
+  { name: '北京', lat: 39.90, lon: 116.41 },
+  { name: '天津', lat: 39.12, lon: 117.19 },
+  { name: '上海', lat: 31.23, lon: 121.47 },
+  { name: '广州', lat: 23.13, lon: 113.26 },
+  { name: '成都', lat: 30.57, lon: 104.07 },
+  { name: '南京', lat: 32.06, lon: 118.78 },
+  { name: '武汉', lat: 30.59, lon: 114.31 },
+  { name: '西安', lat: 34.34, lon: 108.94 },
+  { name: '杭州', lat: 30.25, lon: 120.15 },
+  { name: '深圳', lat: 22.54, lon: 114.06 },
+];
+
+const DEFAULT_CITY: CityOption = PRESET_CITIES[1]; // 天津
 
 interface WeatherStore {
   weather: WeatherInfo | null;
   cityName: string;
+  currentCity: CityOption;
   loaded: boolean;
   fetchWeather: () => Promise<void>;
+  refetch: () => Promise<void>;
+  setCity: (city: CityOption) => Promise<void>;
+  loadSavedCity: () => Promise<void>;
+}
+
+export async function fetchOpenMeteo(lat: number, lon: number): Promise<WeatherInfo | null> {
+  const url =
+    `https://api.open-meteo.com/v1/forecast` +
+    `?latitude=${lat}&longitude=${lon}` +
+    `&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m` +
+    `&daily=weather_code,temperature_2m_max,temperature_2m_min` +
+    `&timezone=auto&forecast_days=7`;
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 10_000);
+  let resp: Response;
+  try {
+    resp = await fetch(url, { signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+  if (!resp.ok) return null;
+  const data = await resp.json();
+
+  const cur = data.current;
+  const daily = data.daily;
+
+  if (!cur) return null;
+
+  const forecast: WeatherForecastDay[] = (daily?.time ?? []).map((date: string, i: number) => ({
+    date,
+    tempMax: String(Math.round(daily.temperature_2m_max[i])),
+    tempMin: String(Math.round(daily.temperature_2m_min[i])),
+    textDay: wmoText(daily.weather_code[i]),
+  }));
+
+  return {
+    temp: String(Math.round(cur.temperature_2m)),
+    text: wmoText(cur.weather_code),
+    humidity: String(cur.relative_humidity_2m),
+    windSpeed: String(cur.wind_speed_10m),
+    forecast,
+  };
 }
 
 export const useWeatherStore = create<WeatherStore>((set, get) => ({
   weather: null,
-  cityName: '',
+  cityName: DEFAULT_CITY.name,
+  currentCity: DEFAULT_CITY,
   loaded: false,
+
+  loadSavedCity: async () => {
+    try {
+      const raw = await AsyncStorage.getItem(CITY_STORAGE_KEY);
+      if (raw) {
+        const city: CityOption = JSON.parse(raw);
+        set({ currentCity: city, cityName: city.name });
+      }
+    } catch {
+      // keep default
+    }
+  },
 
   fetchWeather: async () => {
     if (get().loaded) return;
+    await get().refetch();
+  },
+
+  refetch: async () => {
+    set({ loaded: false });
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        set({ loaded: true });
-        return;
+      if (status === 'granted') {
+        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Low });
+        const [geo] = await Location.reverseGeocodeAsync(loc.coords);
+        const detectedCity = geo?.city || geo?.region || get().currentCity.name;
+        const weather = await fetchOpenMeteo(loc.coords.latitude, loc.coords.longitude);
+        if (weather) {
+          set({ weather, cityName: detectedCity, loaded: true });
+          return;
+        }
       }
-      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Low });
-      const [geo] = await Location.reverseGeocodeAsync(loc.coords);
-      const cityName = geo?.city || geo?.region || '';
-      const weather = await api.getWeather(loc.coords.latitude, loc.coords.longitude);
-      set({ weather, cityName, loaded: true });
+    } catch {
+      // GPS not available (e.g. Huawei without Google Services) — fall through to city fallback
+    }
+
+    // Fallback: use the saved/default city
+    try {
+      const { currentCity } = get();
+      const weather = await fetchOpenMeteo(currentCity.lat, currentCity.lon);
+      set({ weather, cityName: currentCity.name, loaded: true });
+    } catch (e) {
+      console.log('[weather] city fallback error:', e);
+      set({ loaded: true });
+    }
+  },
+
+  setCity: async (city: CityOption) => {
+    set({ currentCity: city, cityName: city.name, loaded: false });
+    try {
+      await AsyncStorage.setItem(CITY_STORAGE_KEY, JSON.stringify(city));
+    } catch { /* ignore */ }
+    // Re-fetch weather for the new city
+    try {
+      const weather = await fetchOpenMeteo(city.lat, city.lon);
+      set({ weather, cityName: city.name, loaded: true });
     } catch {
       set({ loaded: true });
     }

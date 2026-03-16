@@ -92,6 +92,39 @@ def _fetch_weather(location: str) -> dict:
     return result
 
 
+def format_weather_json_for_prompt(weather_json_str: str, city_name: str | None = None) -> str:
+    """Parse the Open-Meteo JSON sent from the frontend and format it for the AI prompt."""
+    import json
+    try:
+        w = json.loads(weather_json_str)
+    except Exception:
+        return ""
+
+    lines = []
+    city = city_name or "未知"
+    temp = w.get("temp", "?")
+    text = w.get("text", "未知")
+    humidity = w.get("humidity", "?")
+    wind_speed = w.get("windSpeed", "?")
+
+    lines.append(
+        f"用户所在城市：{city}，当前天气：{text}，"
+        f"气温{temp}°C，湿度{humidity}%，风速{wind_speed}km/h"
+    )
+
+    forecast = w.get("forecast", [])
+    if forecast:
+        fc_parts = []
+        for d in forecast[:7]:
+            fc_parts.append(
+                f"{d.get('date', '?')}：{d.get('textDay', '?')}，"
+                f"{d.get('tempMin', '?')}~{d.get('tempMax', '?')}°C"
+            )
+        lines.append("未来7天天气预报：" + "；".join(fc_parts))
+
+    return "\n".join(lines)
+
+
 def format_weather_for_prompt(weather: dict) -> str:
     if not weather or weather.get("error") or not weather.get("current"):
         return ""

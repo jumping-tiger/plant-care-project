@@ -15,9 +15,11 @@ function AppBootstrap({ children }: { children: React.ReactNode }) {
   const loadGarden = useGardenStore(s => s.loadGarden);
   const loadRecords = useDiagnosisStore(s => s.loadRecords);
   const loadReminders = useReminderStore(s => s.loadReminders);
+  const loadSavedCity = useWeatherStore(s => s.loadSavedCity);
 
   useEffect(() => {
-    fetchWeather();
+    // loadSavedCity must run before fetchWeather so the correct city coords are used
+    loadSavedCity().then(() => fetchWeather());
     loadGarden();
     loadRecords();
     loadReminders();

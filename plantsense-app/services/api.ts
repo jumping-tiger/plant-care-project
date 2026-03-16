@@ -9,7 +9,6 @@ import type {
   LoginRequest,
   RegisterRequest,
   User,
-  WeatherInfo,
   ChatMessage,
 } from '../types';
 
@@ -120,12 +119,13 @@ export const api = {
 
   analyzePlant(
     imageUri: string,
-    location?: { latitude?: string; longitude?: string; cityName?: string },
+    options?: { latitude?: string; longitude?: string; cityName?: string; weatherJson?: string },
   ): Promise<ApiResponse<AnalysisResult>> {
     const extra: Record<string, string> = {};
-    if (location?.latitude) extra.latitude = location.latitude;
-    if (location?.longitude) extra.longitude = location.longitude;
-    if (location?.cityName) extra.city_name = location.cityName;
+    if (options?.latitude) extra.latitude = options.latitude;
+    if (options?.longitude) extra.longitude = options.longitude;
+    if (options?.cityName) extra.city_name = options.cityName;
+    if (options?.weatherJson) extra.weather_json = options.weatherJson;
     return uploadImage('/plant/analyze', imageUri, Object.keys(extra).length ? extra : undefined);
   },
 
@@ -133,10 +133,11 @@ export const api = {
     plantName: string,
     currentScore: number,
     cityName?: string,
+    weatherJson?: string,
   ): Promise<ApiResponse<PredictionResult>> {
     return request('/plant/prediction', {
       method: 'POST',
-      body: JSON.stringify({ plantName, currentScore, city_name: cityName }),
+      body: JSON.stringify({ plantName, currentScore, city_name: cityName, weather_json: weatherJson }),
     });
   },
 
@@ -146,16 +147,6 @@ export const api = {
 
   updateProfile(data: Partial<User>): Promise<ApiResponse<User>> {
     return request('/user/profile', { method: 'PUT', body: JSON.stringify(data) });
-  },
-
-  async getWeather(lat: number, lon: number): Promise<WeatherInfo | null> {
-    try {
-      const resp = await request<any>(`/plant/weather?latitude=${lat}&longitude=${lon}`);
-      if (resp.success && resp.data) return resp.data as WeatherInfo;
-      return null;
-    } catch {
-      return null;
-    }
   },
 
   chat(messages: ChatMessage[]): Promise<ApiResponse<{ reply: string }>> {

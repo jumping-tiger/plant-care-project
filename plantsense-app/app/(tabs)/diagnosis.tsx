@@ -3,11 +3,11 @@ import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Image, Alert, Act
 import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
-import * as Location from 'expo-location';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppHeader } from '../../components/AppHeader';
 import { useDiagnosisStore } from '../../stores/diagnosisStore';
+import { useWeatherStore } from '../../stores/weatherStore';
 import { api } from '../../services/api';
 import type { DiagnosisRecord } from '../../types';
 
@@ -15,6 +15,7 @@ export default function DiagnosisScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { records, removeRecord } = useDiagnosisStore();
+  const { weather, cityName, loaded, refetch } = useWeatherStore();
   const [analyzing, setAnalyzing] = useState(false);
 
   const pickAndAnalyze = async (fromCamera: boolean) => {
@@ -41,21 +42,27 @@ export default function DiagnosisScreen() {
       imageUri = destUri;
 
       setAnalyzing(true);
-      let location: { latitude?: string; longitude?: string; cityName?: string } | undefined;
-      try {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status === 'granted') {
-          const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Low });
-          const [geo] = await Location.reverseGeocodeAsync(loc.coords);
-          location = {
-            latitude: String(loc.coords.latitude),
-            longitude: String(loc.coords.longitude),
-            cityName: geo?.city || geo?.region || '',
-          };
-        }
-      } catch { /* 位置获取失败不影响主流程 */ }
 
-      const resp = await api.analyzePlant(imageUri, location);
+      // Ensure weather is available before analysis; if not loaded yet, trigger a refetch
+      let currentWeather = useWeatherStore.getState().weather;
+      if (!currentWeather && !loaded) {
+        await refetch();
+        currentWeather = useWeatherStore.getState().weather;
+      }
+
+      const currentCityName = useWeatherStore.getState().cityName;
+      const weatherJson = currentWeather ? JSON.stringify(currentWeather) : undefined;
+
+      if (!weatherJson) {
+        // Non-blocking notice — analysis continues without weather
+        Alert.alert(
+          '提示',
+          '无法获取当地天气，将基于标准环境给出养护建议。',
+          [{ text: '继续', style: 'default' }],
+        );
+      }
+
+      const resp = await api.analyzePlant(imageUri, { cityName: currentCityName, weatherJson });
       setAnalyzing(false);
 
       if (!resp.success || !resp.data) {
@@ -95,8 +102,22 @@ export default function DiagnosisScreen() {
         contentContainerStyle={[styles.content, { paddingBottom: 80 + insets.bottom }]}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.pageTitle}>🔍 植物诊断</Text>
+        <Text style={styles.pageTitle}>植物诊断</Text>
         <Text style={styles.pageDesc}>拍摄或选择植物照片，AI 将分析其健康状态</Text>
+
+        {/* 当前位置天气标识 */}
+        <TouchableOpacity
+          style={styles.weatherBadge}
+          onPress={() => {/* AppHeader modal handles city change */}}
+          activeOpacity={1}
+        >
+          <MaterialCommunityIcons name="map-marker-outline" size={14} color="#81d4fa" />
+          <Text style={styles.weatherBadgeText}>
+            {cityName || '未知城市'}
+            {weather ? `  ${weather.temp}°C ${weather.text}` : '  天气加载中…'}
+          </Text>
+          <Text style={styles.weatherBadgeHint}>（点击顶部天气可切换城市）</Text>
+        </TouchableOpacity>
 
         <View style={styles.btnRow}>
           <TouchableOpacity
@@ -172,7 +193,20 @@ const styles = StyleSheet.create({
   },
   loadingText: { color: '#4caf50', fontSize: 16, marginTop: 16 },
   pageTitle: { color: '#e0e0e0', fontSize: 22, fontWeight: 'bold', marginBottom: 6 },
-  pageDesc: { color: '#888', fontSize: 13, marginBottom: 20 },
+  pageDesc: { color: '#888', fontSize: 13, marginBottom: 12 },
+  weatherBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1a2a3a',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 16,
+    gap: 6,
+    flexWrap: 'wrap',
+  },
+  weatherBadgeText: { color: '#81d4fa', fontSize: 13 },
+  weatherBadgeHint: { color: '#555', fontSize: 11 },
   btnRow: { flexDirection: 'row', marginBottom: 8 },
   actionBtn: {
     flex: 1, backgroundColor: '#1e3e1e', borderRadius: 14, padding: 24,
