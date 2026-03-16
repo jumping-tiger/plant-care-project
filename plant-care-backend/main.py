@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse
 
 from database import engine, Base
 from routers import auth_router, user_router, plant_router, encyclopedia_router
+from routers import chat_router
 
 UPLOAD_DIR = os.getenv("UPLOAD_DIR", "E:/cursor_workspace/1/user_photo")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -32,6 +33,7 @@ app.include_router(auth_router.router)
 app.include_router(user_router.router)
 app.include_router(plant_router.router)
 app.include_router(encyclopedia_router.router)
+app.include_router(chat_router.router)
 
 
 @app.exception_handler(Exception)

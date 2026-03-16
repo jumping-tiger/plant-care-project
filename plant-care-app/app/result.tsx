@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { View, StyleSheet, ScrollView, Image, Pressable, ActivityIndicator } from 'react-native';
+import { View, StyleSheet, ScrollView, Image, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Text, Chip, Snackbar } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -90,7 +90,7 @@ export default function ResultScreen() {
       <ScrollView
         style={styles.flex}
         contentContainerStyle={[styles.content, { paddingBottom: 100 + insets.bottom }]}
-        keyboardShouldPersistTaps="always"
+        keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
       >
         {result.imageUri ? (
@@ -182,24 +182,22 @@ export default function ResultScreen() {
         )}
 
         <View style={styles.actions} collapsable={false}>
-          <Pressable
+          <TouchableOpacity
             onPress={handleViewPrediction}
-            style={({ pressed }) => [styles.primaryBtn, pressed && { opacity: 0.75 }]}
-            hitSlop={12}
+            activeOpacity={0.7}
+            style={styles.primaryBtn}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           >
             <MaterialCommunityIcons name="chart-line" size={18} color="#fff" style={{ marginRight: 8 }} />
             <Text style={styles.primaryBtnLabel}>查看 7 天预测</Text>
-          </Pressable>
+          </TouchableOpacity>
 
-          <Pressable
+          <TouchableOpacity
             onPress={handleSaveToHistory}
             disabled={saved || saving}
-            style={({ pressed }) => [
-              styles.outlineBtn,
-              pressed && { opacity: 0.75 },
-              (saved || saving) && { opacity: 0.5 },
-            ]}
-            hitSlop={12}
+            activeOpacity={0.7}
+            style={[styles.outlineBtn, (saved || saving) && { opacity: 0.5 }]}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           >
             {saving ? (
               <ActivityIndicator size={16} color={Colors.primaryLight} style={{ marginRight: 8 }} />
@@ -214,7 +212,7 @@ export default function ResultScreen() {
             <Text style={styles.outlineBtnLabel}>
               {saving ? '正在保存…' : saved ? '已保存' : '保存到历史'}
             </Text>
-          </Pressable>
+          </TouchableOpacity>
         </View>
       </ScrollView>
 

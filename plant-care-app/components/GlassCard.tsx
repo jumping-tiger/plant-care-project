@@ -21,33 +21,37 @@ export function GlassCard({
   intensity = 40,
   padding = 20,
 }: Props) {
-  if (Platform.OS === 'web') {
+  // Android: BlurView 在 Bridgeless 新架构下会吞噬触摸事件，
+  // 改用纯半透明背景，保证 100% 点击灵敏度
+  if (Platform.OS === 'android') {
     return (
-      <View
-        style={[
-          styles.card,
-          styles.webFallback,
-          { padding },
-          style,
-        ]}
-      >
+      <View style={[styles.card, styles.androidFallback, { padding }, style]}>
         {children}
       </View>
     );
   }
 
-  // Android/iOS: BlurView 直接作为卡片容器，children 是直接子节点
-  // 不再使用 absoluteFill 覆盖层，彻底消除触摸拦截
-  return (
-    <BlurView
-      intensity={intensity}
-      tint="dark"
-      style={[styles.card, style]}
-    >
-      <View style={{ padding }}>
+  // Web: CSS backdropFilter 方案
+  if (Platform.OS === 'web') {
+    return (
+      <View style={[styles.card, styles.webFallback, { padding }, style]}>
         {children}
       </View>
-    </BlurView>
+    );
+  }
+
+  // iOS: absoluteFill BlurView 作为底层，内容 View 同级放在上层
+  return (
+    <View style={[styles.card, style]}>
+      <BlurView
+        style={StyleSheet.absoluteFill}
+        intensity={intensity}
+        tint="dark"
+      />
+      <View style={[styles.inner, { padding }]}>
+        {children}
+      </View>
+    </View>
   );
 }
 
@@ -63,8 +67,14 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
     elevation: 8,
   },
+  androidFallback: {
+    backgroundColor: 'rgba(20,20,20,0.72)',
+  },
   webFallback: {
     backgroundColor: 'rgba(25,25,25,0.75)',
     backdropFilter: 'blur(20px)',
   } as any,
+  inner: {
+    // 确保内容层在 BlurView 之上，无需 zIndex（同级 View 后者自然覆盖前者）
+  },
 });

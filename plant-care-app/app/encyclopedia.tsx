@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { View, StyleSheet, ScrollView, TextInput as RNTextInput, Pressable, Platform } from 'react-native';
+import { View, StyleSheet, ScrollView, TextInput as RNTextInput, TouchableOpacity } from 'react-native';
 import { Text, ActivityIndicator } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -52,20 +52,21 @@ export default function EncyclopediaScreen() {
       <ScrollView
         style={styles.flex}
         contentContainerStyle={[styles.content, { paddingBottom: 80 + insets.bottom }]}
-        keyboardShouldPersistTaps="always"
+        keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
       >
         <Text style={styles.hint}>输入植物名称，AI 将为你生成详细的百科介绍</Text>
 
         <GlassCard padding={14}>
           <View style={styles.searchRow} collapsable={false}>
-            <Pressable
+            <TouchableOpacity
               onPress={() => handleSearch()}
-              style={({ pressed }) => [styles.searchIconBtn, pressed && styles.tagPressed]}
+              activeOpacity={0.7}
+              style={styles.searchIconBtn}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
               <MaterialCommunityIcons name="magnify" size={22} color={Colors.primaryLight} />
-            </Pressable>
+            </TouchableOpacity>
             <RNTextInput
               placeholder="搜索植物名称..."
               placeholderTextColor={Colors.textMuted}
@@ -83,23 +84,18 @@ export default function EncyclopediaScreen() {
 
         <View style={styles.tags} collapsable={false}>
           {POPULAR_PLANTS.map((name) => (
-            <Pressable
+            <TouchableOpacity
               key={name}
               onPress={() => {
-                if (Platform.OS !== 'android') {
-                  setQuery(name);
-                  handleSearch(name);
-                }
-              }}
-              onPressIn={Platform.OS === 'android' ? () => {
                 setQuery(name);
                 handleSearch(name);
-              } : undefined}
-              style={({ pressed }) => [styles.tag, pressed && styles.tagPressed]}
+              }}
+              activeOpacity={0.7}
+              style={styles.tag}
               hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
             >
               <Text style={styles.tagText}>{name}</Text>
-            </Pressable>
+            </TouchableOpacity>
           ))}
         </View>
 

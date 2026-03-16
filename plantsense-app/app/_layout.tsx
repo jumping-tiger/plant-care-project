@@ -1,0 +1,50 @@
+import React, { useEffect } from 'react';
+import { Stack } from 'expo-router';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { StatusBar } from 'expo-status-bar';
+import { AuthContext, useAuthProvider } from '../stores/authStore';
+import { useWeatherStore } from '../stores/weatherStore';
+import { useGardenStore } from '../stores/gardenStore';
+import { useDiagnosisStore } from '../stores/diagnosisStore';
+
+function AppBootstrap({ children }: { children: React.ReactNode }) {
+  const auth = useAuthProvider();
+  const fetchWeather = useWeatherStore(s => s.fetchWeather);
+  const loadGarden = useGardenStore(s => s.loadGarden);
+  const loadRecords = useDiagnosisStore(s => s.loadRecords);
+
+  useEffect(() => {
+    fetchWeather();
+    loadGarden();
+    loadRecords();
+  }, []);
+
+  return (
+    <AuthContext.Provider value={auth}>
+      {children}
+    </AuthContext.Provider>
+  );
+}
+
+export default function RootLayout() {
+  return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <AppBootstrap>
+          <StatusBar style="light" />
+          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#0f1f0f' } }}>
+            <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="(auth)" />
+            <Stack.Screen name="profile" />
+            <Stack.Screen name="diagnosis-result" />
+            <Stack.Screen name="add-plant" />
+            <Stack.Screen name="plant-detail" />
+            <Stack.Screen name="expert-chat" />
+            <Stack.Screen name="light-meter" />
+          </Stack>
+        </AppBootstrap>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
+  );
+}

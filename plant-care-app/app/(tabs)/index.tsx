@@ -1,4 +1,4 @@
-import { View, StyleSheet, TouchableOpacity, Pressable, ScrollView } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { Text } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter, Link } from 'expo-router';
@@ -57,7 +57,7 @@ export default function HomeScreen() {
 
         <View style={styles.entryRow}>
           <Link href="/encyclopedia" asChild>
-            <Pressable style={styles.entryCard}>
+            <TouchableOpacity activeOpacity={0.8} style={styles.entryCard}>
               <GlassCard padding={16} style={styles.entryGlass}>
                 <View style={styles.entryIconWrap}>
                   <MaterialCommunityIcons name="book-open-variant" size={28} color={Colors.primaryLight} />
@@ -65,11 +65,11 @@ export default function HomeScreen() {
                 <Text style={styles.entryTitle}>植物百科</Text>
                 <Text style={styles.entryDesc}>搜索植物，获取 AI 生成的百科介绍</Text>
               </GlassCard>
-            </Pressable>
+            </TouchableOpacity>
           </Link>
 
           <Link href="/care-guide" asChild>
-            <Pressable style={styles.entryCard}>
+            <TouchableOpacity activeOpacity={0.8} style={styles.entryCard}>
               <GlassCard padding={16} style={styles.entryGlass}>
                 <View style={styles.entryIconWrap}>
                   <MaterialCommunityIcons name="flower-tulip" size={28} color={Colors.primaryLight} />
@@ -77,7 +77,7 @@ export default function HomeScreen() {
                 <Text style={styles.entryTitle}>养护指南</Text>
                 <Text style={styles.entryDesc}>浇水、施肥、光照等养护技巧</Text>
               </GlassCard>
-            </Pressable>
+            </TouchableOpacity>
           </Link>
         </View>
 
