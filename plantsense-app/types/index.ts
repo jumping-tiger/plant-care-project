@@ -29,16 +29,29 @@ export interface WeatherInfo {
   windSpeed?: string;
 }
 
+export type PlantPersonality = 'lively' | 'cool' | 'elegant';
+
 export interface GardenPlant {
   id: string;
   nickname: string;
   species: string;
   emoji: string;
+  coverImage?: string;
   addedAt: string;
   lastWatered: string | null;
   wateringIntervalDays: number;
   reminderEnabled: boolean;
+  personality: PlantPersonality;
   notes?: string;
+}
+
+export interface PlantReminder {
+  id: string;
+  plantId: string;
+  plantNickname: string;
+  title: string;
+  datetime: string;
+  notificationId?: string;
 }
 
 export interface WateringRecord {

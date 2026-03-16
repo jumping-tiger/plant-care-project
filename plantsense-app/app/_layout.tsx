@@ -7,17 +7,20 @@ import { AuthContext, useAuthProvider } from '../stores/authStore';
 import { useWeatherStore } from '../stores/weatherStore';
 import { useGardenStore } from '../stores/gardenStore';
 import { useDiagnosisStore } from '../stores/diagnosisStore';
+import { useReminderStore } from '../stores/reminderStore';
 
 function AppBootstrap({ children }: { children: React.ReactNode }) {
   const auth = useAuthProvider();
   const fetchWeather = useWeatherStore(s => s.fetchWeather);
   const loadGarden = useGardenStore(s => s.loadGarden);
   const loadRecords = useDiagnosisStore(s => s.loadRecords);
+  const loadReminders = useReminderStore(s => s.loadReminders);
 
   useEffect(() => {
     fetchWeather();
     loadGarden();
     loadRecords();
+    loadReminders();
   }, []);
 
   return (
@@ -42,6 +45,8 @@ export default function RootLayout() {
             <Stack.Screen name="plant-detail" />
             <Stack.Screen name="expert-chat" />
             <Stack.Screen name="light-meter" />
+            <Stack.Screen name="garden-plant-detail" />
+            <Stack.Screen name="prediction" />
           </Stack>
         </AppBootstrap>
       </SafeAreaProvider>

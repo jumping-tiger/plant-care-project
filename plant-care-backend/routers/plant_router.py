@@ -4,7 +4,7 @@ import asyncio
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException, Request
+from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException, Request, Query
 from sqlalchemy.orm import Session
 
 from database import get_db
@@ -70,6 +70,27 @@ async def analyze(
         result["weatherInfo"] = weather_data
 
     return {"success": True, "data": result}
+
+
+@router.get("/weather")
+async def get_weather(
+    latitude: float = Query(...),
+    longitude: float = Query(...),
+    current_user: User = Depends(get_current_user),
+):
+    try:
+        data = await asyncio.to_thread(get_weather_by_coords, str(latitude), str(longitude))
+        if data and not data.get("error") and data.get("current"):
+            c = data["current"]
+            return {"success": True, "data": {
+                "temp": str(c.get("temp", "--")),
+                "text": c.get("text", ""),
+                "humidity": str(c.get("humidity", "")),
+                "windSpeed": str(c.get("windSpeed", "")),
+            }}
+        return {"success": False, "error": "天气获取失败"}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
 
 
 @router.post("/prediction")

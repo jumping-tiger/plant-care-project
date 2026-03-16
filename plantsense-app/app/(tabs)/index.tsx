@@ -5,13 +5,49 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppHeader } from '../../components/AppHeader';
 import { useGardenStore } from '../../stores/gardenStore';
+import { useReminderStore } from '../../stores/reminderStore';
 import { useAuth } from '../../stores/authStore';
 import { CARE_TIPS } from '../../data/plants';
-import type { GardenPlant } from '../../types';
+import type { GardenPlant, PlantPersonality } from '../../types';
+
+// 各性格对应的话术库
+const PERSONALITY_LINES: Record<PlantPersonality, Record<string, string[]>> = {
+  lively: {
+    needsWater: ['我渴死啦！快来救我！💧💧', '呜呜呜好渴好渴，快浇水！', '主人！我要喝水！！！'],
+    tomorrow: ['明天就该浇水啦，别忘了我哦～', '快了快了，明天记得来！✨'],
+    good: ['今天状态超棒！开心！🎉', '我很好很好！谢谢你的照顾！😊', '哇今天阳光真好，我好快乐！🌞'],
+    noRecord: ['还不知道我喝没喝水呢，你记一下呗～', '我的浇水记录还是空的哦！'],
+  },
+  cool: {
+    needsWater: ['缺水。', '水不够了。', '……需要浇水了。'],
+    tomorrow: ['明天浇水。', '快了。'],
+    good: ['还行。', '状态尚可。', '没什么问题。'],
+    noRecord: ['没有浇水记录。', '数据缺失。'],
+  },
+  elegant: {
+    needsWater: ['轻声细语，我在等待甘露的滋润…', '干涸许久，期待一场细雨…', '若能饮水，余生皆安。'],
+    tomorrow: ['明日应当施以甘霖，莫要忘怀。', '时候将至，一点清泉便是恩典。'],
+    good: ['今日尚好，安然自在。', '岁月静好，感谢关怀。', '一切如常，清风徐来。'],
+    noRecord: ['浇水之事，尚无记录，还请留意。', '往昔几度饮水，已无从考证。'],
+  },
+};
+
+function getPersonalityLine(personality: PlantPersonality, key: string): string {
+  const lines = PERSONALITY_LINES[personality]?.[key] || PERSONALITY_LINES.lively[key] || ['状态良好'];
+  return lines[Math.floor(Math.random() * lines.length)];
+}
 
 function PlantBubble({ plant }: { plant: GardenPlant }) {
   const { getPlantStatus } = useGardenStore();
   const status = getPlantStatus(plant);
+  const personality = plant.personality || 'lively';
+
+  let msgKey = 'good';
+  if (status.needsWater) msgKey = 'needsWater';
+  else if (status.label === '明天浇水') msgKey = 'tomorrow';
+  else if (status.label === '未记录浇水') msgKey = 'noRecord';
+
+  const message = getPersonalityLine(personality, msgKey);
 
   return (
     <View style={styles.bubbleRow}>
@@ -20,11 +56,7 @@ function PlantBubble({ plant }: { plant: GardenPlant }) {
       </View>
       <View style={styles.bubble}>
         <Text style={styles.bubbleName}>{plant.nickname}</Text>
-        <Text style={styles.bubbleMsg}>
-          {status.emoji} {status.needsWater
-            ? `我好渴呀，快来浇水吧！`
-            : `我今天状态${status.label === '状态良好' ? '不错哦~' : status.label}`}
-        </Text>
+        <Text style={styles.bubbleMsg}>{message}</Text>
         <Text style={styles.bubbleSpecies}>{plant.species}</Text>
       </View>
     </View>
@@ -35,7 +67,10 @@ export default function HomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { plants } = useGardenStore();
+  const { getTodayReminders } = useReminderStore();
   const { user } = useAuth();
+  const todayReminders = getTodayReminders();
+  const waterNeeded = plants.filter(p => useGardenStore.getState().getPlantStatus(p).needsWater).length;
 
   return (
     <View style={styles.screen}>
@@ -45,7 +80,6 @@ export default function HomeScreen() {
         contentContainerStyle={[styles.content, { paddingBottom: 80 + insets.bottom }]}
         showsVerticalScrollIndicator={false}
       >
-        {/* 问候语 */}
         <Text style={styles.greeting}>
           你好，{user?.nickname || '植物爱好者'} 🌱
         </Text>
@@ -71,11 +105,11 @@ export default function HomeScreen() {
           style={styles.identifyCard}
         >
           <MaterialCommunityIcons name="camera" size={32} color="#4caf50" />
-          <View style={{ marginLeft: 12 }}>
+          <View style={{ marginLeft: 12, flex: 1 }}>
             <Text style={styles.identifyTitle}>拍照识别</Text>
             <Text style={styles.identifyDesc}>AI 分析植物种类、健康状态和养护建议</Text>
           </View>
-          <MaterialCommunityIcons name="chevron-right" size={24} color="#666" style={{ marginLeft: 'auto' }} />
+          <MaterialCommunityIcons name="chevron-right" size={24} color="#555" />
         </TouchableOpacity>
 
         {/* 今日提醒 + 光度计 */}
@@ -87,12 +121,13 @@ export default function HomeScreen() {
           >
             <MaterialCommunityIcons name="bell-outline" size={28} color="#ffb74d" />
             <Text style={styles.toolTitle}>今日提醒</Text>
-            <Text style={styles.toolDesc}>
-              {plants.filter(p => {
-                const s = useGardenStore.getState().getPlantStatus(p);
-                return s.needsWater;
-              }).length} 棵植物需要浇水
-            </Text>
+            {todayReminders.length > 0 ? (
+              todayReminders.slice(0, 2).map(r => (
+                <Text key={r.id} style={styles.reminderItem} numberOfLines={1}>• {r.title}</Text>
+              ))
+            ) : (
+              <Text style={styles.toolDesc}>{waterNeeded > 0 ? `${waterNeeded} 棵植物需要浇水` : '今天暂无提醒'}</Text>
+            )}
           </TouchableOpacity>
           <TouchableOpacity
             onPress={() => router.push('/light-meter')}
@@ -105,7 +140,7 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* 养护指南 */}
+        {/* 养护小贴士 */}
         <Text style={styles.sectionTitle}>养护小贴士</Text>
         {CARE_TIPS.map((tip, i) => (
           <View key={i} style={styles.tipCard}>
@@ -126,7 +161,7 @@ const styles = StyleSheet.create({
   scroll: { flex: 1 },
   content: { padding: 16 },
   greeting: { color: '#e0e0e0', fontSize: 20, fontWeight: 'bold', marginBottom: 16, marginTop: 4 },
-  sectionTitle: { color: '#4caf50', fontSize: 14, fontWeight: '600', marginTop: 20, marginBottom: 10, letterSpacing: 1 },
+  sectionTitle: { color: '#4caf50', fontSize: 13, fontWeight: '600', marginTop: 20, marginBottom: 10, letterSpacing: 1, textTransform: 'uppercase' },
   emptyCard: { backgroundColor: '#1e2e1e', borderRadius: 12, padding: 20, alignItems: 'center' },
   emptyText: { color: '#888', fontSize: 14, textAlign: 'center', marginBottom: 12 },
   addBtn: { backgroundColor: '#2d5a27', paddingHorizontal: 20, paddingVertical: 8, borderRadius: 20 },
@@ -137,10 +172,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#1e3e1e', alignItems: 'center', justifyContent: 'center', marginRight: 10,
   },
   bubbleEmoji: { fontSize: 24 },
-  bubble: { flex: 1, backgroundColor: '#1e3e1e', borderRadius: 12, padding: 12 },
+  bubble: { flex: 1, backgroundColor: '#1e3e1e', borderRadius: 12, borderTopLeftRadius: 4, padding: 12 },
   bubbleName: { color: '#4caf50', fontSize: 13, fontWeight: '600', marginBottom: 4 },
   bubbleMsg: { color: '#e0e0e0', fontSize: 14, lineHeight: 20 },
-  bubbleSpecies: { color: '#666', fontSize: 11, marginTop: 4 },
+  bubbleSpecies: { color: '#555', fontSize: 11, marginTop: 4 },
   identifyCard: {
     backgroundColor: '#1e3e1e', borderRadius: 12, padding: 16,
     flexDirection: 'row', alignItems: 'center',
@@ -148,11 +183,10 @@ const styles = StyleSheet.create({
   identifyTitle: { color: '#e0e0e0', fontSize: 16, fontWeight: '600' },
   identifyDesc: { color: '#888', fontSize: 12, marginTop: 2 },
   toolRow: { flexDirection: 'row', marginTop: 4 },
-  toolCard: {
-    flex: 1, backgroundColor: '#1e3e1e', borderRadius: 12, padding: 16, alignItems: 'center',
-  },
-  toolTitle: { color: '#e0e0e0', fontSize: 14, fontWeight: '600', marginTop: 8 },
-  toolDesc: { color: '#888', fontSize: 11, marginTop: 4, textAlign: 'center' },
+  toolCard: { flex: 1, backgroundColor: '#1e3e1e', borderRadius: 12, padding: 16, alignItems: 'center', minHeight: 100 },
+  toolTitle: { color: '#e0e0e0', fontSize: 14, fontWeight: '600', marginTop: 8, marginBottom: 4 },
+  toolDesc: { color: '#888', fontSize: 11, textAlign: 'center' },
+  reminderItem: { color: '#ffb74d', fontSize: 11, textAlign: 'center', marginTop: 2 },
   tipCard: {
     backgroundColor: '#1a2e1a', borderRadius: 10, padding: 14,
     flexDirection: 'row', alignItems: 'flex-start', marginBottom: 8,

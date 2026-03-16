@@ -58,7 +58,8 @@
         {
           "locationAlwaysAndWhenInUsePermission": "允许植觉获取位置以查询当地天气"
         }
-      ]
+      ],
+      "@react-native-community/datetimepicker"
     ]
   }
 }
